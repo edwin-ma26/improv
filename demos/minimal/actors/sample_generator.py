@@ -2,6 +2,7 @@ from improv.actor import Actor, RunManager
 from datetime import date  # used for saving
 import numpy as np
 import logging
+import time  # Importing time module for the delay
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -30,7 +31,7 @@ class Generator(Actor):
         """
 
         logger.info("Beginning setup for Generator")
-        self.data = np.asmatrix(np.random.randint(100, size=(100, 5)))
+        self.data = np.random.randint(10, size=(1, 5))  # Initialize data
         logger.info("Completed setup for Generator")
 
     def stop(self):
@@ -43,26 +44,21 @@ class Generator(Actor):
     def runStep(self):
         """Generates additional data after initial setup data is exhausted.
 
-        Data is of a different form as the setup data in that although it is
-        the same size (5x1 vector), it is uniformly distributed in [1, 10]
-        instead of in [1, 100]. Therefore, the average over time should
-        converge to 5.5.
+        Data is a 5x1 vector uniformly distributed in [1, 10].
         """
+
+        time.sleep(0.5)  # Delay for half a second
 
         if self.frame_num < np.shape(self.data)[0]:
             data_id = self.client.put(
                 self.data[self.frame_num], str(f"Gen_raw: {self.frame_num}")
             )
-            # logger.info('Put data in store')
             try:
                 self.q_out.put([[data_id, str(self.frame_num)]])
                 logger.info("Sent message on")
                 self.frame_num += 1
             except Exception as e:
-                logger.error(
-                    f"--------------------------------Generator Exception: {e}"
-                )
+                logger.error(f"--------------------------------Generator Exception: {e}")
         else:
-            self.data = np.concatenate(
-                (self.data, np.asmatrix(np.random.randint(10, size=(1, 5)))), axis=0
-            )
+            new_data = np.random.randint(10, size=(1, 5))
+            self.data = np.concatenate((self.data, new_data), axis=0)
