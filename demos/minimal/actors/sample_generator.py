@@ -1,5 +1,4 @@
 from improv.actor import Actor, RunManager
-from datetime import date  # used for saving
 import numpy as np
 import logging
 import time  # Importing time module for the delay
@@ -16,49 +15,52 @@ class Generator(Actor):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.data = None
         self.name = "Generator"
-        self.frame_num = 0
+        self.frame_num = 0  # Initialize frame counter
+        # Generate xs (x-coordinates)
+        self.xs = np.linspace(-10, 10, 100)
 
     def __str__(self):
-        return f"Name: {self.name}, Data: {self.data}"
+        return f"Name: {self.name}"
 
     def setup(self):
-        """Generates an array that serves as an initial source of data.
-
-        Initial array is a 100 row, 5 column numpy matrix that contains
-        integers from 1-99, inclusive.
-        """
-
+        """Initial setup for Generator."""
         logger.info("Beginning setup for Generator")
-        self.data = np.random.randint(10, size=(1, 5))  # Initialize data
         logger.info("Completed setup for Generator")
 
     def stop(self):
-        """Save current randint vector to a file."""
-
+        """Actions to perform on stopping."""
         logger.info("Generator stopping")
-        np.save("sample_generator_data.npy", self.data)
         return 0
 
     def runStep(self):
-        """Generates additional data after initial setup data is exhausted.
-
-        Data is a 5x1 vector uniformly distributed in [1, 10].
-        """
-
+        """Sends a dictionary containing frame number and 2D array with x and y coordinates."""
         time.sleep(0.5)  # Delay for half a second
 
-        if self.frame_num < np.shape(self.data)[0]:
-            data_id = self.client.put(
-                self.data[self.frame_num], str(f"Gen_raw: {self.frame_num}")
-            )
-            try:
-                self.q_out.put([[data_id, str(self.frame_num)]])
-                logger.info("Sent message on")
-                self.frame_num += 1
-            except Exception as e:
-                logger.error(f"--------------------------------Generator Exception: {e}")
+        # Generate sine or cosine values based on frame number
+        if self.frame_num % 2 == 0:
+            # Even frame: Generate sine wave
+            ys = np.sin(self.xs)
         else:
-            new_data = np.random.randint(10, size=(1, 5))
-            self.data = np.concatenate((self.data, new_data), axis=0)
+            # Odd frame: Generate cosine wave
+            ys = np.cos(self.xs)
+
+        # Combine x and y into a 2D array
+        values = np.column_stack((self.xs, ys))  # Shape (100, 2)
+
+        # Prepare the data to send
+        data_to_send = {
+            "frame_num": self.frame_num,
+            "values": values,  # 2D array with x and y coordinates
+        }
+
+        # Send the dictionary
+        try:
+            data_id = self.client.put(data_to_send, f"Frame: {self.frame_num}")
+            self.q_out.put([[data_id, f"Frame: {self.frame_num}"]])
+            logger.info(f"Sent frame {self.frame_num} with x and y coordinates")
+        except Exception as e:
+            logger.error(f"Generator Exception: {e}")
+
+        # Increment frame number
+        self.frame_num += 1
